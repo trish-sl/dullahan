@@ -51,6 +51,7 @@ class dullahan_render_handler :
 
     private:
         void resizePixelBuffer(int width, int height);
+        void resizePopupBuffer(int width, int height);
         void copyPopupIntoView();
         void copyViewRect(const unsigned char* src, const CefRect& rect);
         CefRect toBufferRect(const CefRect& rect) const;
@@ -60,6 +61,7 @@ class dullahan_render_handler :
         int mPixelBufferHeight;
         bool mPixelBufferNew;
         unsigned char* mPopupBuffer;
+        size_t mPopupBufferSize;
         CefRect mPopupBufferRect;
         int mBufferDepth;
 

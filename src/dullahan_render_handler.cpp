@@ -52,6 +52,7 @@ dullahan_render_handler::dullahan_render_handler(dullahan_impl* parent) :
 
     // the popup buffer
     mPopupBuffer = nullptr;
+    mPopupBufferSize = 0;
 
     // depth is same for all buffer
     mBufferDepth = parent->getDepth();
@@ -92,17 +93,56 @@ void dullahan_render_handler::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect
     rect = CefRect(0, 0, width, height);
 }
 
+// (Re)allocate the popup buffer when the popup changes size
+void dullahan_render_handler::resizePopupBuffer(int width, int height)
+{
+    const size_t size = (width > 0 && height > 0) ? (size_t)width * height * mBufferDepth : 0;
+    if (mPopupBuffer == nullptr || size != mPopupBufferSize)
+    {
+        delete[] mPopupBuffer;
+        mPopupBuffer = nullptr;
+        mPopupBufferSize = size;
+        if (size > 0)
+        {
+            mPopupBuffer = new unsigned char[size];
+            memset(mPopupBuffer, 0xff, size);
+        }
+    }
+
+    mPopupBufferRect.width = width;
+    mPopupBufferRect.height = height;
+}
+
+// Copy the popup into the pixel buffer, clipped to the view: Chromium can place a popup
+// partly outside the view (e.g. a select list near the bottom or right edge of a page)
+// and only the part that is inside it can be drawn.
 void dullahan_render_handler::copyPopupIntoView()
 {
-    // the popup's top row; in a flipped buffer row y of the view is row (height - 1 - y)
-    int popup_y = (mFlipYPixels ? (mPixelBufferHeight - 1 - mPopupBufferRect.y) : mPopupBufferRect.y);
-    unsigned char* src = (unsigned char*)mPopupBuffer;
-    unsigned char* dst = mPixelBuffer + popup_y * mPixelBufferWidth * mBufferDepth + mPopupBufferRect.x * mBufferDepth;
-    while (src < (unsigned char*)mPopupBuffer + mPopupBufferRect.width * mPopupBufferRect.height * mBufferDepth)
+    if (mPopupBuffer == nullptr || mPixelBuffer == nullptr)
     {
-        memcpy(dst, src, mPopupBufferRect.width * mBufferDepth);
-        src += mPopupBufferRect.width * mBufferDepth;
-        dst += mPixelBufferWidth * mBufferDepth * (mFlipYPixels ? -1 : 1);
+        return;
+    }
+
+    const int left = std::max(mPopupBufferRect.x, 0);
+    const int top = std::max(mPopupBufferRect.y, 0);
+    const int right = std::min(mPopupBufferRect.x + mPopupBufferRect.width, mPixelBufferWidth);
+    const int bottom = std::min(mPopupBufferRect.y + mPopupBufferRect.height, mPixelBufferHeight);
+    if (right <= left || bottom <= top)
+    {
+        return;
+    }
+
+    const size_t src_stride = (size_t)mPopupBufferRect.width * mBufferDepth;
+    const size_t dst_stride = (size_t)mPixelBufferWidth * mBufferDepth;
+    const size_t src_offset = (size_t)(left - mPopupBufferRect.x) * mBufferDepth;
+    const size_t dst_offset = (size_t)left * mBufferDepth;
+    const size_t span = (size_t)(right - left) * mBufferDepth;
+    for (int y = top; y < bottom; ++y)
+    {
+        // in a flipped buffer row y of the view is row (height - 1 - y)
+        const int dst_y = mFlipYPixels ? (mPixelBufferHeight - 1 - y) : y;
+        memcpy(mPixelBuffer + dst_y * dst_stride + dst_offset,
+               mPopupBuffer + (y - mPopupBufferRect.y) * src_stride + src_offset, span);
     }
 }
 
@@ -154,9 +194,20 @@ void dullahan_render_handler::OnPaint(CefRefPtr<CefBrowser> browser,
     // popup was updated
     else if (type == PET_POPUP)
     {
-        // copy over the popup pixels into it's buffer
-        // (popup buffer created in onPopupSize() as we know the size there)
-        memcpy(mPopupBuffer, buffer, width * height * mBufferDepth);
+        // ignore a paint for a popup that has already been hidden
+        if (mPopupBuffer == nullptr)
+        {
+            return;
+        }
+
+        // copy over the popup pixels into it's buffer (popup buffer created in onPopupSize()
+        // as we know the size there but use the size of this paint in case they differ)
+        resizePopupBuffer(width, height);
+        if (mPopupBuffer == nullptr)
+        {
+            return;
+        }
+        memcpy(mPopupBuffer, buffer, mPopupBufferSize);
 
         // copy over popup pixels into page pixels. We need this for when popup is changing (e.g. highlighting or scrolling)
         // when the containing page is not changing and therefore doesn't get an OnPaint update
@@ -224,8 +275,12 @@ void dullahan_render_handler::OnPopupShow(CefRefPtr<CefBrowser> browser, bool sh
     {
         delete[] mPopupBuffer;
         mPopupBuffer = nullptr;
+        mPopupBufferSize = 0;
 
         mPopupBufferRect.Set(0,0, 0,0);
+
+        // the popup's pixels are still in the pixel buffer so repaint the page under it
+        browser->GetHost()->Invalidate(PET_VIEW);
     }
 }
 
@@ -234,11 +289,16 @@ void dullahan_render_handler::OnPopupSize(CefRefPtr<CefBrowser> browser, const C
 {
     CEF_REQUIRE_UI_THREAD();
 
+    // if a popup that is already showing moves or changes size, the pixel buffer still
+    // has its pixels where it was, so the page under it needs to be repainted
+    const bool moved = (mPopupBuffer != nullptr && rect != mPopupBufferRect);
+
     mPopupBufferRect = rect;
-    if (mPopupBuffer == nullptr)
+    resizePopupBuffer(rect.width, rect.height);
+
+    if (moved)
     {
-        mPopupBuffer = new unsigned char[rect.width * rect.height * mBufferDepth];
-        memset(mPopupBuffer, 0xff, rect.width * rect.height * mBufferDepth);
+        browser->GetHost()->Invalidate(PET_VIEW);
     }
 }
 
