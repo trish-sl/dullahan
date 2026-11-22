@@ -215,6 +215,11 @@ void dullahan::setFrameRate(int frame_rate)
     mImpl->setFrameRate(frame_rate);
 }
 
+void dullahan::setHidden(bool hidden)
+{
+    mImpl->setHidden(hidden);
+}
+
 bool dullahan::editCanUndo()
 {
 	return mImpl->editCanUndo();
