@@ -303,6 +303,9 @@ class dullahan
         // but audio, video playback and scripts keep running. Pages start visible.
         void setHidden(bool hidden);
 
+        // mute or unmute all audio the page plays. Pages start unmuted.
+        void setAudioMuted(bool muted);
+
         // indicates if there is something available to be copy/cut/pasted
         // (for UI purposes) and if so, provides methods to do so
         bool editCanUndo();

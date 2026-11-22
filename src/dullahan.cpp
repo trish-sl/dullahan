@@ -220,6 +220,11 @@ void dullahan::setHidden(bool hidden)
     mImpl->setHidden(hidden);
 }
 
+void dullahan::setAudioMuted(bool muted)
+{
+    mImpl->setAudioMuted(muted);
+}
+
 bool dullahan::editCanUndo()
 {
 	return mImpl->editCanUndo();

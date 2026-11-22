@@ -107,6 +107,7 @@ class dullahan_impl :
         void setPageZoom(const double zoom_val);
         void setFrameRate(int frame_rate);
         void setHidden(bool hidden);
+        void setAudioMuted(bool muted);
 
         bool editCanUndo();
         bool editCanRedo();

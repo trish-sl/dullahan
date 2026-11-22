@@ -925,6 +925,16 @@ void dullahan_impl::setHidden(bool hidden)
     }
 }
 
+// Mute or unmute the page's audio. Unlike changing the volume of the audio
+// output, this works whichever audio API and process CEF plays audio with.
+void dullahan_impl::setAudioMuted(bool muted)
+{
+    if (mBrowser.get() && mBrowser->GetHost())
+    {
+        mBrowser->GetHost()->SetAudioMuted(muted);
+    }
+}
+
 void dullahan_impl::showDevTools()
 {
     if (mBrowser.get() && mBrowser->GetHost())
