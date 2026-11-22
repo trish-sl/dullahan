@@ -176,9 +176,20 @@ void dullahan_callback_manager::setOnPageChangedCallback(
     mOnPageChangedCallbackFunc = callback;
 }
 
-void dullahan_callback_manager::onPageChanged(const unsigned char* pixels, int x, int y, int width, int height)
+void dullahan_callback_manager::setOnPageChangedExCallback(
+    std::function<void(const unsigned char* pixels, int x, int y, int width, int height, int buffer_width, int buffer_height)> callback)
 {
-    if (mOnPageChangedCallbackFunc)
+    mOnPageChangedExCallbackFunc = callback;
+}
+
+// calls the callback that also takes the size of the pixel buffer if it is set, otherwise the original one
+void dullahan_callback_manager::onPageChanged(const unsigned char* pixels, int x, int y, int width, int height, int buffer_width, int buffer_height)
+{
+    if (mOnPageChangedExCallbackFunc)
+    {
+        mOnPageChangedExCallbackFunc(pixels, x, y, width, height, buffer_width, buffer_height);
+    }
+    else if (mOnPageChangedCallbackFunc)
     {
         mOnPageChangedCallbackFunc(pixels, x, y, width, height);
     }

@@ -443,6 +443,14 @@ void dullahan::setOnPageChangedCallback(std::function<void(const unsigned char* 
     mImpl->getCallbackManager()->setOnPageChangedCallback(callback);
 }
 
+void dullahan::setOnPageChangedExCallback(std::function<void(const unsigned char* pixels,
+                                          int x, int y,
+                                          int width, int height,
+                                          int buffer_width, int buffer_height)> callback)
+{
+    mImpl->getCallbackManager()->setOnPageChangedExCallback(callback);
+}
+
 void dullahan::setOnRequestExitCallback(std::function<void()> callback)
 {
     mImpl->getCallbackManager()->setOnRequestExitCallback(callback);

@@ -66,7 +66,8 @@ class dullahan_callback_manager
         void onOpenPopup(const std::string url, const std::string target);
 
         void setOnPageChangedCallback(std::function<void(const unsigned char* pixels, int x, int y, int width, int height)> callback);
-        void onPageChanged(const unsigned char* pixels, int x, int y, int width, int height);
+        void setOnPageChangedExCallback(std::function<void(const unsigned char* pixels, int x, int y, int width, int height, int buffer_width, int buffer_height)> callback);
+        void onPageChanged(const unsigned char* pixels, int x, int y, int width, int height, int buffer_width, int buffer_height);
 
         void setOnStatusMessageCallback(std::function<void(const std::string message)> callback);
         void onStatusMessage(const std::string message);
@@ -110,6 +111,7 @@ class dullahan_callback_manager
         std::function<void()> mOnLoadStartCallbackFunc;
         std::function<void(const std::string, const std::string)> mOnOpenPopupCallbackFunc;
         std::function<void(const unsigned char*, int, int, int, int)> mOnPageChangedCallbackFunc;
+        std::function<void(const unsigned char*, int, int, int, int, int, int)> mOnPageChangedExCallbackFunc;
         std::function<void(const std::string)> mOnStatusMessageCallbackFunc;
         std::function<void()> mOnRequestExitCallbackFunc;
         std::function<void(const std::string)> mOnTitleChangeCallbackFunc;

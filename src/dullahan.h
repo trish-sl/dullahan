@@ -405,6 +405,14 @@ class dullahan
                                       int x, int y,
                                       int width, int height)> callback);
 
+        // contents of the pages changes - as above but also passes the size of the whole
+        // pixel buffer, which differs from width and height when report_dirty_rects is set
+        // and only part of the page changed. If set, it is called instead of the callback above.
+        void setOnPageChangedExCallback(std::function<void(const unsigned char* pixels,
+                                        int x, int y,
+                                        int width, int height,
+                                        int buffer_width, int buffer_height)> callback);
+
         // exit app requested
         void setOnRequestExitCallback(std::function<void()> callback);
 

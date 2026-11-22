@@ -225,12 +225,14 @@ void dullahan_render_handler::OnPaint(CefRefPtr<CefBrowser> browser,
     {
         if (!mReportDirtyRects)
         {
-            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, 0, 0, mPixelBufferWidth, mPixelBufferHeight);
+            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, 0, 0, mPixelBufferWidth, mPixelBufferHeight,
+                                                         mPixelBufferWidth, mPixelBufferHeight);
         }
         else if (changed.width > 0 && changed.height > 0)
         {
             const CefRect rect = toBufferRect(changed);
-            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, rect.x, rect.y, rect.width, rect.height);
+            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, rect.x, rect.y, rect.width, rect.height,
+                                                         mPixelBufferWidth, mPixelBufferHeight);
         }
     }
 }
