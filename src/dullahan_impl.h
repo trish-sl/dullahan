@@ -33,6 +33,7 @@
 #include <sstream>
 
 #include "cef_app.h"
+#include "cef_auth_callback.h"
 #ifndef CEF_INCLUDE_CEF_VERSION_H_
 #include "cef_version.h"
 #endif
@@ -136,6 +137,9 @@ class dullahan_impl :
         void flushAllCookies();
         void postData(const std::string url, const std::string data,
                       const std::string headers);
+        void requestHTTPAuth(const std::string& host, const std::string& realm,
+                             CefRefPtr<CefAuthCallback> callback);
+        void authResponse(bool ok, const std::string& username, const std::string& password);
         bool executeJavaScript(const std::string cmd);
 
         dullahan_callback_manager* getCallbackManager();
@@ -175,6 +179,7 @@ class dullahan_impl :
         CefRefPtr<dullahan_render_handler> mRenderHandler;
         CefRefPtr<CefRequestContext> mRequestContext;
         CefRefPtr<CefBrowser> mBrowser;
+        CefRefPtr<CefAuthCallback> mPendingAuthCallback;
         dullahan_callback_manager* mCallbackManager;
 
         bool mInitialized;

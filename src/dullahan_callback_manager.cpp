@@ -98,6 +98,25 @@ bool dullahan_callback_manager::onHTTPAuth(const std::string host, const std::st
     return false;
 }
 
+void dullahan_callback_manager::setOnHTTPAuthRequestCallback(
+    std::function<void(const std::string host, const std::string realm)> callback)
+{
+    mOnHTTPAuthRequestCallbackFunc = callback;
+}
+
+bool dullahan_callback_manager::hasHTTPAuthRequestCallback()
+{
+    return (bool)mOnHTTPAuthRequestCallbackFunc;
+}
+
+void dullahan_callback_manager::onHTTPAuthRequest(const std::string host, const std::string realm)
+{
+    if (mOnHTTPAuthRequestCallbackFunc)
+    {
+        mOnHTTPAuthRequestCallbackFunc(host, realm);
+    }
+}
+
 void dullahan_callback_manager::setOnLoadEndCallback(std::function<void(int status, const std::string url)> callback)
 {
     mOnLoadEndCallbackFunc = callback;

@@ -336,6 +336,10 @@ class dullahan
                       const std::string data,
                       const std::string headers);
 
+        // answer the HTTP auth request passed to the callback set with
+        // setOnHTTPAuthRequestCallback(..) - ok = false cancels the request
+        void authResponse(bool ok, const std::string& username, const std::string& password);
+
         // javascript
         bool executeJavaScript(const std::string cmd);
 
@@ -371,9 +375,17 @@ class dullahan
                                           bool is_redirect)> callback);
 
         // HTTP auth request triggered
+        // Note: called on CEF's IO thread and must answer at once - if the callback
+        //       below is set, it is used instead and this one is not called
         void setOnHTTPAuthCallback(std::function<bool(const std::string host,
                                    const std::string realm,
                                    std::string& username, std::string& password)> callback);
+
+        // HTTP auth request triggered - called on the thread that calls update() (or run())
+        // and answered by calling authResponse(..), now or later. Only one request waits for
+        // an answer at a time: a new request cancels the one before it.
+        void setOnHTTPAuthRequestCallback(std::function<void(const std::string host,
+                                          const std::string realm)> callback);
 
         // page finishes loading
         void setOnLoadEndCallback(std::function<void(int status, const std::string url)> callback);

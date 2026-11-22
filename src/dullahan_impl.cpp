@@ -492,6 +492,9 @@ bool dullahan_impl::init(dullahan::dullahan_settings& user_settings)
 
 void dullahan_impl::shutdown()
 {
+    // don't leave an HTTP auth request waiting for an answer that can't come
+    authResponse(false, std::string(), std::string());
+
     mBrowser = nullptr;
     mRenderHandler = nullptr;
     mBrowserClient = nullptr;
@@ -502,6 +505,9 @@ void dullahan_impl::shutdown()
 
 void dullahan_impl::requestExit()
 {
+    // cancel any HTTP auth request still waiting for an answer
+    authResponse(false, std::string(), std::string());
+
     if (mBrowser.get() && mBrowser->GetHost())
     {
         flushAllCookies();
@@ -1110,6 +1116,44 @@ void dullahan_impl::postData(const std::string url, const std::string data,
         mBrowser->GetMainFrame()->LoadRequest(request);
 
         // TODO - where do we catch what comes back?
+    }
+}
+
+// Called on the UI thread with an HTTP auth request when the consumer answers them
+// asynchronously. Only one request waits for an answer at a time: if another one is
+// still waiting, it is cancelled.
+void dullahan_impl::requestHTTPAuth(const std::string& host, const std::string& realm,
+                                    CefRefPtr<CefAuthCallback> callback)
+{
+    authResponse(false, std::string(), std::string());
+
+    // the consumer stopped handling requests since this one was posted
+    if (!mCallbackManager->hasHTTPAuthRequestCallback())
+    {
+        callback->Cancel();
+        return;
+    }
+
+    mPendingAuthCallback = callback;
+    mCallbackManager->onHTTPAuthRequest(host, realm);
+}
+
+// The consumer's answer to the HTTP auth request that is waiting, if there is one
+void dullahan_impl::authResponse(bool ok, const std::string& username, const std::string& password)
+{
+    if (mPendingAuthCallback)
+    {
+        CefRefPtr<CefAuthCallback> callback = mPendingAuthCallback;
+        mPendingAuthCallback = nullptr;
+
+        if (ok)
+        {
+            callback->Continue(username, password);
+        }
+        else
+        {
+            callback->Cancel();
+        }
     }
 }
 

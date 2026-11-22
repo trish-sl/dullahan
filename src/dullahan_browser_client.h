@@ -184,6 +184,9 @@ class dullahan_browser_client :
                                   bool is_reload,
                                   CefRefPtr<CefJSDialogCallback> callback) override;
     private:
+        void onHTTPAuthRequest(const std::string host, const std::string realm,
+                               CefRefPtr<CefAuthCallback> callback);
+
         dullahan_impl* mParent;
         CefRefPtr<CefRenderHandler> mRenderHandler;
         typedef std::list<CefRefPtr<CefBrowser>> BrowserList;

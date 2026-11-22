@@ -49,6 +49,10 @@ class dullahan_callback_manager
         void setOnHTTPAuthCallback(std::function<bool(const std::string host, const std::string realm, std::string& username, std::string& password)> callback);
         bool onHTTPAuth(const std::string host, const std::string realm, std::string& username, std::string& password);
 
+        void setOnHTTPAuthRequestCallback(std::function<void(const std::string host, const std::string realm)> callback);
+        bool hasHTTPAuthRequestCallback();
+        void onHTTPAuthRequest(const std::string host, const std::string realm);
+
         void setOnLoadEndCallback(std::function<void(int status, const std::string url)> callback);
         void onLoadEnd(int status, const std::string url);
 
@@ -100,6 +104,7 @@ class dullahan_callback_manager
         std::function<void(const dullahan::ECursorType)> mOnCursorChangedCallbackFunc;
         std::function<void(const std::string, bool, bool)> mOnCustomSchemeURLCallbackFunc;
         std::function<bool(const std::string, const std::string, std::string&, std::string&)> mOnHTTPAuthCallbackFunc;
+        std::function<void(const std::string, const std::string)> mOnHTTPAuthRequestCallbackFunc;
         std::function<void(int, const std::string)> mOnLoadEndCallbackFunc;
         std::function<void(int, const std::string, const std::string)> mOnLoadErrorCallbackFunc;
         std::function<void()> mOnLoadStartCallbackFunc;

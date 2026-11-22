@@ -27,6 +27,8 @@
 #define NOMINMAX
 
 #include "cef_browser.h"
+#include "base/cef_callback.h"
+#include "wrapper/cef_closure_task.h"
 #include "wrapper/cef_helpers.h"
 
 #include "dullahan_render_handler.h"
@@ -364,6 +366,18 @@ bool dullahan_browser_client::GetAuthCredentials(CefRefPtr<CefBrowser> browser, 
     std::string realm_str = realm;
     std::string scheme_str = scheme;
 
+    // This runs on CEF's IO thread, where the consumer can't wait for a user to type
+    // a name and password. If it answers requests asynchronously, pass the request to
+    // the UI thread (the one the consumer calls update() on) and keep the callback until
+    // the consumer calls dullahan::authResponse(..).
+    if (mParent->getCallbackManager()->hasHTTPAuthRequestCallback())
+    {
+        CefPostTask(TID_UI, base::BindOnce(&dullahan_browser_client::onHTTPAuthRequest,
+                                           CefRefPtr<dullahan_browser_client>(this),
+                                           host_str, realm_str, callback));
+        return true; // request continues once answered
+    }
+
     std::string username = "";
     std::string password = "";
     bool proceed = mParent->getCallbackManager()->onHTTPAuth(host_str, realm_str, username, password);
@@ -378,6 +392,15 @@ bool dullahan_browser_client::GetAuthCredentials(CefRefPtr<CefBrowser> browser, 
         callback->Cancel();
         return false; // cancel request
     }
+}
+
+// HTTP auth request posted to the UI thread by GetAuthCredentials(..)
+void dullahan_browser_client::onHTTPAuthRequest(const std::string host, const std::string realm,
+        CefRefPtr<CefAuthCallback> callback)
+{
+    CEF_REQUIRE_UI_THREAD();
+
+    mParent->requestHTTPAuth(host, realm, callback);
 }
 
 // CefRequestHandler override - route resource requests through this same object.

@@ -334,6 +334,11 @@ void dullahan::postData(const std::string url,
     mImpl->postData(url, data, headers);
 }
 
+void dullahan::authResponse(bool ok, const std::string& username, const std::string& password)
+{
+    mImpl->authResponse(ok, username, password);
+}
+
 bool dullahan::executeJavaScript(const std::string cmd)
 {
     return mImpl->executeJavaScript(cmd);
@@ -402,6 +407,12 @@ void dullahan::setOnHTTPAuthCallback(std::function<bool(const std::string host,
                                      std::string& username, std::string& password)> callback)
 {
     mImpl->getCallbackManager()->setOnHTTPAuthCallback(callback);
+}
+
+void dullahan::setOnHTTPAuthRequestCallback(std::function<void(const std::string host,
+                                            const std::string realm)> callback)
+{
+    mImpl->getCallbackManager()->setOnHTTPAuthRequestCallback(callback);
 }
 
 void dullahan::setOnLoadEndCallback(std::function<void(int status, const std::string url)> callback)
