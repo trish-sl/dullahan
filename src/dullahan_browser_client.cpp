@@ -160,17 +160,22 @@ void dullahan_browser_client::OnBeforeClose(CefRefPtr<CefBrowser> browser)
         // necessary to enforce CEF finishes work before exit - writing cookies file for example.
         // see: https://github.com/chromiumembedded/cef/blob/2773518869b5f57a848e807ddb2ee30adbf1c255/tests/shared/browser/main_message_loop_external_pump_win.cc#L91
         // and: https://bitbucket.org/chromiumembedded/cef/issues/1805/
-        const int num_extra_cef_work_loops = 10;
-        const int sleep_time_between_calls = 50;
-
-        for (int i = 0; i < num_extra_cef_work_loops; ++i)
-        {
-            CefDoMessageLoopWork();
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_between_calls));
-        }
-
-        mParent->getCallbackManager()->onRequestExit();
+        // Rather than run CEF's message loop from inside this callback (and block the thread
+        // for half a second), tell the consumer it can exit after a delay: it keeps running
+        // the message loop with update() (or run()) until then, which lets CEF finish its work.
+        const int exit_delay_ms = 500;
+        CefPostDelayedTask(TID_UI, base::BindOnce(&dullahan_browser_client::onAllBrowsersClosed,
+                                                  CefRefPtr<dullahan_browser_client>(this)),
+                           exit_delay_ms);
     }
+}
+
+// Posted by OnBeforeClose(..) once the last browser has closed and CEF has had time to finish its work
+void dullahan_browser_client::onAllBrowsersClosed()
+{
+    CEF_REQUIRE_UI_THREAD();
+
+    mParent->getCallbackManager()->onRequestExit();
 }
 
 // CefLifeSpanHandler override

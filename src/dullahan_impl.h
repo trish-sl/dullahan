@@ -29,6 +29,7 @@
 
 #define NOMINMAX
 
+#include <atomic>
 #include <functional>
 #include <sstream>
 
@@ -185,6 +186,7 @@ class dullahan_impl :
         dullahan_callback_manager* mCallbackManager;
 
         bool mInitialized;
+        std::atomic<bool> mContextInitialized;
         int mViewWidth;
         int mViewHeight;
         std::string mProxyHostPort;

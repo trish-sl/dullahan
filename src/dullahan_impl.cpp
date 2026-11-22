@@ -66,6 +66,7 @@ static const int kCookieWaitTimeoutMs = 2000;
 
 dullahan_impl::dullahan_impl() :
     mInitialized(false),
+    mContextInitialized(false),
     mBrowser(nullptr),
     mCallbackManager(new dullahan_callback_manager),
     mViewWidth(0),
@@ -522,29 +523,34 @@ bool dullahan_impl::init(dullahan::dullahan_settings& user_settings)
     const int height = user_settings.initial_height;
     window_info.bounds = { 0, 0, width, height };
 
-    mRequestContext = CefRequestContext::GetGlobalContext();
-
-    // Generate a short pause between creating the request context and creating
-    // the browser. This is not a good solution but for the moment, seems to
-    // work - I can repro the error 1 in 5 times.  I've tried this hundreds of
-    // times and haven't seen it. Probably hardware specific. Probably appear
-    // for me as soon as this ships! The correct solution is likely to be
-    // hooking up the callback in the second parameter of CreateContext and
-    // overriding the OnRequestContextINitialized() virtual override. Then,
-    // once that fires, continue with the rest of initialization.
-    const int num_extra_cef_work_loops = 10;
-    const int sleep_time_between_calls = 5;
-    for (int i = 0; i < num_extra_cef_work_loops; ++i)
+    // Creating the browser too soon after CefInitialize(..) used to fail now and then, so
+    // there was a short fixed pause here. What the browser needs is for the CEF context
+    // (including the global request context) to be initialized, which CEF signals with
+    // OnContextInitialized() when the message loop runs, so run it until then. Give up
+    // after a while rather than hang if that never happens.
+    const auto give_up = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
+    while (!mContextInitialized && std::chrono::steady_clock::now() < give_up)
     {
         CefDoMessageLoopWork();
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_between_calls));
+        if (!mContextInitialized)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
+
+    mRequestContext = CefRequestContext::GetGlobalContext();
+
+    // set the size *before* we create the browser: CEF asks for it with GetViewRect(..)
+    // while the browser is being created (setSize(..) only stores the size once there
+    // is a browser to tell about it)
+    mViewWidth = width;
+    mViewHeight = height;
 
     // browser for this instance - empty URL and no extra_info
     mBrowser = CefBrowserHost::CreateBrowserSync(window_info, mBrowserClient.get(), std::string(), browser_settings, nullptr, mRequestContext.get());
 
-    // important: set the size *after* we create a browser
-    setSize(user_settings.initial_width, user_settings.initial_height);
+    // tell the new browser its size in case anything asked for it before it was set
+    setSize(width, height);
 
     // recent versions of CEF seem to be pickier (rightly so) about calling dullahan_impl::update()
     // before initialization has completed so we should block that until we're fully complete here
@@ -1369,6 +1375,9 @@ void dullahan_impl::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> regist
 void dullahan_impl::OnContextInitialized()
 {
     CefRegisterSchemeHandlerFactory(kEmbedScheme, CefString(), new dullahan_embed_scheme_factory(this));
+
+    // init() waits for this before creating the browser
+    mContextInitialized = true;
 }
 
 CefRefPtr<CefBrowser> dullahan_impl::getBrowser()

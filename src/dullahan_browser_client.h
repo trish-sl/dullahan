@@ -188,6 +188,7 @@ class dullahan_browser_client :
     private:
         void onHTTPAuthRequest(const std::string host, const std::string realm,
                                CefRefPtr<CefAuthCallback> callback);
+        void onAllBrowsersClosed();
 
         dullahan_impl* mParent;
         CefRefPtr<CefRenderHandler> mRenderHandler;
