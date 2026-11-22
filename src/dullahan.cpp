@@ -435,6 +435,13 @@ void dullahan::setOnLoadStartCallback(std::function<void()> callback)
     mImpl->getCallbackManager()->setOnLoadStartCallback(callback);
 }
 
+void dullahan::setOnNavigationCallback(std::function<void(const std::string url,
+                                       bool user_gesture,
+                                       bool is_redirect)> callback)
+{
+    mImpl->getCallbackManager()->setOnNavigationCallback(callback);
+}
+
 void dullahan::setOnOpenPopupCallback(std::function<void(const std::string url,
                                       const std::string target)> callback)
 {

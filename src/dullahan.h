@@ -405,6 +405,14 @@ class dullahan
         // page starts to load
         void setOnLoadStartCallback(std::function<void()> callback);
 
+        // the page is about to navigate to a URL - user_gesture is true if the user started
+        // the navigation (e.g. clicked a link) rather than the page or a redirect. Called for
+        // the main frame only and not for navigations Dullahan stops, such as to custom scheme
+        // URLs (see setOnCustomSchemeURLCallback(..)).
+        void setOnNavigationCallback(std::function<void(const std::string url,
+                                     bool user_gesture,
+                                     bool is_redirect)> callback);
+
         // popup opened
         void setOnOpenPopupCallback(std::function<void(const std::string url,
                                     const std::string target)> callback);

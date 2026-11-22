@@ -352,6 +352,12 @@ bool dullahan_browser_client::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,
         ++iter;
     }
 
+    // tell the consumer where the page is going and whether the user asked to go there
+    if (frame && frame->IsMain())
+    {
+        mParent->getCallbackManager()->onNavigation(request->GetURL(), user_gesture, isRedirect);
+    }
+
     return false;
 }
 

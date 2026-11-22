@@ -156,6 +156,19 @@ void dullahan_callback_manager::onLoadStart()
     }
 }
 
+void dullahan_callback_manager::setOnNavigationCallback(std::function<void(const std::string url, bool user_gesture, bool is_redirect)> callback)
+{
+    mOnNavigationCallbackFunc = callback;
+}
+
+void dullahan_callback_manager::onNavigation(const std::string url, bool user_gesture, bool is_redirect)
+{
+    if (mOnNavigationCallbackFunc)
+    {
+        mOnNavigationCallbackFunc(url, user_gesture, is_redirect);
+    }
+}
+
 void dullahan_callback_manager::setOnOpenPopupCallback(
     std::function<void(const std::string url, const std::string target)> callback)
 {
