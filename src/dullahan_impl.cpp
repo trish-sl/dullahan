@@ -38,7 +38,6 @@
 #include "include/cef_request_context.h"
 #include "include/cef_request_context_handler.h"
 #include "include/cef_scheme.h"
-#include "include/cef_waitable_event.h"
 #include "include/base/cef_logging.h"
 
 #include "dullahan_version.h"
@@ -56,9 +55,14 @@
 #include "dullahan_impl_mac.cpp"
 #endif
 
+#include <atomic>
 #include <iostream>
 #include <chrono>
+#include <memory>
 #include <thread>
+
+// how long to wait for the cookie manager to finish setting, visiting or flushing cookies
+static const int kCookieWaitTimeoutMs = 2000;
 
 dullahan_impl::dullahan_impl() :
     mInitialized(false),
@@ -935,34 +939,52 @@ bool dullahan_impl::setCookie(const std::string url, const std::string name,
 
         cookie.has_expires = false;
 
-        // wait for cookie to be set in setCookie callback
+        // CEF calls the callback on this thread (CEF's UI thread) once the cookie is set.
+        // Blocking this thread to wait for it isn't allowed, so pump CEF's message loop
+        // until it is called instead.
         class setCookieCallback :
             public CefSetCookieCallback
         {
             public:
-                explicit setCookieCallback(CefRefPtr<CefWaitableEvent> event)
-                    : mEvent(event)
+                setCookieCallback() :
+                    mComplete(false),
+                    mSuccess(false)
                 {
                 }
 
                 void OnComplete(bool success) override
                 {
-                    mEvent->Signal();
+                    mSuccess = success;
+                    mComplete = true;
+                }
+
+                bool isComplete() const
+                {
+                    return mComplete;
+                }
+
+                bool succeeded() const
+                {
+                    return mSuccess;
                 }
 
             private:
-                CefRefPtr<CefWaitableEvent> mEvent;
+                std::atomic<bool> mComplete;
+                std::atomic<bool> mSuccess;
 
                 IMPLEMENT_REFCOUNTING(setCookieCallback);
         };
 
-        bool automatically_reset = true;
-        bool initially_signaled = false;
-        CefRefPtr<CefWaitableEvent> event = CefWaitableEvent::CreateWaitableEvent(automatically_reset, initially_signaled);
+        CefRefPtr<setCookieCallback> callback = new setCookieCallback();
 
-        bool result = manager->SetCookie(url, cookie, new setCookieCallback(event));
-
-        event->Wait();
+        // SetCookie returns false (and the callback isn't called) for an invalid URL or
+        // when cookies can't be accessed
+        bool result = manager->SetCookie(url, cookie, callback.get());
+        if (result)
+        {
+            result = pumpMessageLoopUntil([callback]() { return callback->isComplete(); }, kCookieWaitTimeoutMs) &&
+                     callback->succeeded();
+        }
 
         flushAllCookies();
 
@@ -972,35 +994,47 @@ bool dullahan_impl::setCookie(const std::string url, const std::string name,
     return false;
 }
 
-// TODO: This does not pass back the vector of strings correctly.
-//       Plus we should consider adding a cookie class and use that to represent a cookie vs. just name as a string
+// Returns the names of all cookies.
+// TODO: we should consider adding a cookie class and use that to represent a cookie vs. just name as a string
 const std::vector<std::string> dullahan_impl::getAllCookies()
 {
+    // the names collected by the visitor - shared with it since CEF visits the cookies
+    // asynchronously and releases the visitor once the visit is over (also when there
+    // are no cookies to visit, in which case Visit() is never called)
+    struct cookieNames
+    {
+        std::vector<std::string> mNames;
+        std::atomic<bool> mDone{false};
+    };
+
     class CookieVisitor : public CefCookieVisitor
     {
         public:
-            CookieVisitor(std::vector<std::string> cookies) :
-                mCookies(cookies)
+            explicit CookieVisitor(std::shared_ptr<cookieNames> names) :
+                mCookieNames(names)
             {
+            }
+
+            ~CookieVisitor()
+            {
+                mCookieNames->mDone = true;
             }
 
             bool Visit(const CefCookie& cookie, int count, int total, bool& deleteCookie) override
             {
                 const std::string name = std::string(CefString(&cookie.name));
-                const std::string value = std::string(CefString(&cookie.value));
 
-                mCookies.push_back(name);
+                mCookieNames->mNames.push_back(name);
                 deleteCookie = false;
                 return true;
             }
 
         private:
-            std::vector<std::string> mCookies;
+            std::shared_ptr<cookieNames> mCookieNames;
 
             IMPLEMENT_REFCOUNTING(CookieVisitor);
     };
 
-    std::vector<std::string> cookies;
     CefRefPtr<CefCookieManager> manager;
     if (mRequestContext)
     {
@@ -1012,10 +1046,18 @@ const std::vector<std::string> dullahan_impl::getAllCookies()
     }
     if (manager)
     {
-        manager->VisitAllCookies(new CookieVisitor(cookies));
+        std::shared_ptr<cookieNames> names = std::make_shared<cookieNames>();
+
+        // CEF visits the cookies on this thread (CEF's UI thread) so pump CEF's message
+        // loop until the visit is over - blocking this thread to wait isn't allowed
+        if (manager->VisitAllCookies(new CookieVisitor(names)))
+        {
+            pumpMessageLoopUntil([names]() { return names->mDone.load(); }, kCookieWaitTimeoutMs);
+        }
         manager->FlushStore(nullptr);
 
-        return cookies;
+        // the list is incomplete if the visit timed out so return none then
+        return names->mDone ? names->mNames : std::vector<std::string>();
     }
 
     return std::vector<std::string>();
@@ -1056,35 +1098,73 @@ void dullahan_impl::flushAllCookies()
 
     if (manager)
     {
+        // CEF calls the callback on this thread (CEF's UI thread) once the cookies are
+        // written. Blocking this thread to wait for it isn't allowed, so pump CEF's
+        // message loop until it is called instead.
         class flushStoreCallback :
             public CefCompletionCallback
         {
             public:
-                explicit flushStoreCallback(CefRefPtr<CefWaitableEvent> event)
-                    : mEvent(event)
+                flushStoreCallback() :
+                    mComplete(false)
                 {
                 }
 
                 void OnComplete() override
                 {
-                    mEvent->Signal();
+                    mComplete = true;
+                }
+
+                bool isComplete() const
+                {
+                    return mComplete;
                 }
 
             private:
-                CefRefPtr<CefWaitableEvent> mEvent;
+                std::atomic<bool> mComplete;
 
                 IMPLEMENT_REFCOUNTING(flushStoreCallback);
         };
 
-        bool automatically_reset = true;
-        bool initially_signaled = false;
-        CefRefPtr<CefWaitableEvent> event = CefWaitableEvent::CreateWaitableEvent(automatically_reset, initially_signaled);
+        CefRefPtr<flushStoreCallback> callback = new flushStoreCallback();
 
-        const CefRefPtr<CefCompletionCallback> flush_store_callback = new flushStoreCallback(event);
-        manager->FlushStore(flush_store_callback);
-
-        event->Wait();
+        // FlushStore returns false (and the callback isn't called) when cookies can't be accessed
+        if (manager->FlushStore(callback.get()))
+        {
+            pumpMessageLoopUntil([callback]() { return callback->isComplete(); }, kCookieWaitTimeoutMs);
+        }
     }
+}
+
+// Run CEF's message loop until done() returns true or timeout_ms milliseconds pass.
+// Dullahan uses this where it has to wait for CEF to finish some work on CEF's UI thread
+// (the thread that called CefInitialize(), which the consumer runs CEF's message loop on
+// with update()). CEF doesn't allow that thread to block on a CefWaitableEvent, and the
+// work it would be waiting for can only run when the message loop is run anyway.
+// Returns false if it timed out.
+bool dullahan_impl::pumpMessageLoopUntil(const std::function<bool()>& done, int timeout_ms)
+{
+    const std::chrono::steady_clock::time_point give_up =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
+    while (!done())
+    {
+        if (std::chrono::steady_clock::now() >= give_up)
+        {
+            return false;
+        }
+
+        CefDoMessageLoopWork();
+
+        // the work is often done on another thread (e.g. writing the cookie store)
+        // so don't spin while it is
+        if (!done())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+
+    return true;
 }
 
 void dullahan_impl::postData(const std::string url, const std::string data,

@@ -174,6 +174,7 @@ class dullahan_impl :
 
     private:
         bool initCEF(dullahan::dullahan_settings& user_settings);
+        bool pumpMessageLoopUntil(const std::function<bool()>& done, int timeout_ms);
 
         CefRefPtr<dullahan_browser_client> mBrowserClient;
         CefRefPtr<dullahan_render_handler> mRenderHandler;
