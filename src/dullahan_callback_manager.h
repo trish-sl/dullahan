@@ -75,6 +75,9 @@ class dullahan_callback_manager
         void setOnRequestExitCallback(std::function<void()> callback);
         void onRequestExit();
 
+        void setOnRenderProcessTerminatedCallback(std::function<void(int status, int error_code)> callback);
+        void onRenderProcessTerminated(int status, int error_code);
+
         void setOnTitleChangeCallback(std::function<void(const std::string title)> callback);
         void onTitleChange(const std::string title);
 
@@ -114,6 +117,7 @@ class dullahan_callback_manager
         std::function<void(const unsigned char*, int, int, int, int, int, int)> mOnPageChangedExCallbackFunc;
         std::function<void(const std::string)> mOnStatusMessageCallbackFunc;
         std::function<void()> mOnRequestExitCallbackFunc;
+        std::function<void(int, int)> mOnRenderProcessTerminatedCallbackFunc;
         std::function<void(const std::string)> mOnTitleChangeCallbackFunc;
         std::function<void(const std::string)> mOnTooltipCallbackFunc;
         std::function<void(const std::string, bool)> mOnPdfPrintFinishedCallbackFunc;

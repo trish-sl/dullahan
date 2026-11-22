@@ -456,6 +456,11 @@ void dullahan::setOnRequestExitCallback(std::function<void()> callback)
     mImpl->getCallbackManager()->setOnRequestExitCallback(callback);
 }
 
+void dullahan::setOnRenderProcessTerminatedCallback(std::function<void(int status, int error_code)> callback)
+{
+    mImpl->getCallbackManager()->setOnRenderProcessTerminatedCallback(callback);
+}
+
 void dullahan::setOnStatusMessageCallback(std::function<void(const std::string message)> callback)
 {
     mImpl->getCallbackManager()->setOnStatusMessageCallback(callback);

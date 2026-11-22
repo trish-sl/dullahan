@@ -127,6 +127,8 @@ class dullahan_browser_client :
         bool GetAuthCredentials(CefRefPtr<CefBrowser> browser, const CefString& origin_url, bool isProxy,
                                 const CefString& host, int port, const CefString& realm,
                                 const CefString& scheme, CefRefPtr<CefAuthCallback> callback) override;
+        void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser, TerminationStatus status,
+                                       int error_code, const CefString& error_string) override;
 
         // CefRequestHandler -> CefResourceRequestHandler routing
         CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,

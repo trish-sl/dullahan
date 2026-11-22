@@ -403,6 +403,15 @@ void dullahan_browser_client::onHTTPAuthRequest(const std::string host, const st
     mParent->requestHTTPAuth(host, realm, callback);
 }
 
+// CefRequestHandler override
+void dullahan_browser_client::OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,
+        TerminationStatus status, int error_code, const CefString& error_string)
+{
+    CEF_REQUIRE_UI_THREAD();
+
+    mParent->getCallbackManager()->onRenderProcessTerminated((int)status, error_code);
+}
+
 // CefRequestHandler override - route resource requests through this same object.
 CefRefPtr<CefResourceRequestHandler> dullahan_browser_client::GetResourceRequestHandler(
     CefRefPtr<CefBrowser> /*browser*/,

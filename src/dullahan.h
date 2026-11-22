@@ -422,6 +422,12 @@ class dullahan
         // exit app requested
         void setOnRequestExitCallback(std::function<void()> callback);
 
+        // the render process for the page terminated unexpectedly (crashed, was killed or ran
+        // out of memory) - status is a cef_termination_status_t value and error_code is the
+        // process's exit code or a platform specific crash code. The page stops updating
+        // until the consumer reloads it or navigates somewhere else.
+        void setOnRenderProcessTerminatedCallback(std::function<void(int status, int error_code)> callback);
+
         // browser status message changes
         void setOnStatusMessageCallback(std::function<void(const std::string message)> callback);
 

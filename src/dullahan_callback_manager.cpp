@@ -221,6 +221,19 @@ void dullahan_callback_manager::onRequestExit()
     }
 }
 
+void dullahan_callback_manager::setOnRenderProcessTerminatedCallback(std::function<void(int status, int error_code)> callback)
+{
+    mOnRenderProcessTerminatedCallbackFunc = callback;
+}
+
+void dullahan_callback_manager::onRenderProcessTerminated(int status, int error_code)
+{
+    if (mOnRenderProcessTerminatedCallbackFunc)
+    {
+        mOnRenderProcessTerminatedCallbackFunc(status, error_code);
+    }
+}
+
 void dullahan_callback_manager::setOnTitleChangeCallback(std::function<void(const std::string title)> callback)
 {
     mOnTitleChangeCallbackFunc = callback;
