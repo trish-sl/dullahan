@@ -210,6 +210,12 @@ class dullahan
 
             // allow Chrome (or other CEF windoW) to debug via http://localhost::PORT_NUMBER
             int remote_debugging_port = 1964;
+
+            // extra Chrome command line switches, each one "name" or "name=value" (leading
+            // dashes are optional), added after the ones Dullahan adds itself. The values of
+            // enable-features, disable-features, enable-blink-features and disable-blink-features
+            // are merged with any value Dullahan sets rather than replacing it.
+            std::vector<std::string> extra_command_line_switches;
         };
 
     public:

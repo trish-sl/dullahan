@@ -97,6 +97,56 @@ dullahan_impl::~dullahan_impl()
     mCallbackManager = nullptr;
 }
 
+// Add a switch given as "name" or "name=value" (leading dashes are optional) to the command line.
+// Switches whose value is a comma separated list of features are merged with any value the command
+// line already has, since a second copy of the switch would replace the first.
+static void appendCommandLineSwitch(CefRefPtr<CefCommandLine> command_line, const std::string& entry)
+{
+    const size_t start = entry.find_first_not_of('-');
+    if (start == std::string::npos)
+    {
+        return;
+    }
+
+    const size_t equals = entry.find('=', start);
+    const std::string name = entry.substr(start, equals == std::string::npos ? std::string::npos : equals - start);
+    if (name.empty())
+    {
+        return;
+    }
+
+    if (equals == std::string::npos)
+    {
+        command_line->AppendSwitch(name);
+        return;
+    }
+
+    std::string value = entry.substr(equals + 1);
+
+    static const char* const feature_list_switches[] =
+    {
+        "enable-features",
+        "disable-features",
+        "enable-blink-features",
+        "disable-blink-features"
+    };
+    for (const char* feature_list_switch : feature_list_switches)
+    {
+        if (name == feature_list_switch && command_line->HasSwitch(name))
+        {
+            const std::string existing = command_line->GetSwitchValue(name);
+            if (!existing.empty())
+            {
+                value = value.empty() ? existing : existing + "," + value;
+            }
+            command_line->RemoveSwitch(name);
+            break;
+        }
+    }
+
+    command_line->AppendSwitchWithValue(name, value);
+}
+
 void dullahan_impl::OnBeforeCommandLineProcessing(const CefString& process_type,
         CefRefPtr<CefCommandLine> command_line)
 {
@@ -182,6 +232,12 @@ void dullahan_impl::OnBeforeCommandLineProcessing(const CefString& process_type,
         command_line->AppendSwitch("no-first-run");
 
         platformAddCommandLines(command_line);
+
+        // switches the consumer asked for, after the ones above so they can add to or override them
+        for (const std::string& extra_switch : mExtraCommandLineSwitches)
+        {
+            appendCommandLineSwitch(command_line, extra_switch);
+        }
     }
 }
 
@@ -345,6 +401,9 @@ bool dullahan_impl::initCEF(dullahan::dullahan_settings& user_settings)
 
     // the proxy host:port to use
     mProxyHostPort = user_settings.proxy_host_port;
+
+    // extra command line switches the consumer wants added
+    mExtraCommandLineSwitches = user_settings.extra_command_line_switches;
 
     // list of language locale codes used to configure the Accept-Language HTTP header value
     if (user_settings.accept_language_list.length())

@@ -187,6 +187,7 @@ class dullahan_impl :
         int mViewWidth;
         int mViewHeight;
         std::string mProxyHostPort;
+        std::vector<std::string> mExtraCommandLineSwitches;
         bool mSystemFlashEnabled;
         bool mMediaStreamEnabled;
         bool mBeginFrameScheduling;
