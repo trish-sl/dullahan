@@ -308,6 +308,20 @@ bool dullahan_render_handler::GetScreenInfo(CefRefPtr<CefBrowser> browser, CefSc
     // this is how the value for "color depth" in the User Agent string is populated
     screen_info.depth = mBufferDepth * 8;
 
+    // pixels are painted 1:1 with the view
+    screen_info.device_scale_factor = 1.0f;
+
+    // the view is the whole "screen" (and all of it is available), so Chromium keeps
+    // popups such as select lists inside it rather than placing them where the view
+    // can't show them
+    int width, height;
+    mParent->getSize(width, height);
+    if (width > 0 && height > 0)
+    {
+        screen_info.rect = CefRect(0, 0, width, height);
+        screen_info.available_rect = screen_info.rect;
+    }
+
     // indicate we changed the structure
     return true;
 }
