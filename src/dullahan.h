@@ -419,7 +419,8 @@ class dullahan
         // a call to printToPDF completed
         void setOnPdfPrintFinishedCallback(std::function<void(const std::string path, bool ok)> callback);
 
-        // file download progress
+        // file download progress - percent is -1 if not known. When the download ends,
+        // complete is true and percent is 100 if it finished or -1 if it was cancelled or failed
         void setOnFileDownloadProgressCallback(std::function<void(int percent, bool complete)> callback);
 
         // file picker shown

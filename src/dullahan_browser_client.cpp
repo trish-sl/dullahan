@@ -497,13 +497,19 @@ void dullahan_browser_client::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
 {
     CEF_REQUIRE_UI_THREAD();
 
-    bool is_in_progress = download_item->IsInProgress();
-    int percent_complete = download_item->GetPercentComplete();
-    bool is_complete = download_item->IsComplete();
-
-    if (is_in_progress)
+    // report progress while the download is in progress and, when it ends, whether it
+    // finished (100 percent) or was cancelled or failed (-1 percent)
+    if (download_item->IsInProgress())
     {
-        mParent->getCallbackManager()->onFileDownloadProgress(percent_complete, is_complete);
+        mParent->getCallbackManager()->onFileDownloadProgress(download_item->GetPercentComplete(), false);
+    }
+    else if (download_item->IsComplete())
+    {
+        mParent->getCallbackManager()->onFileDownloadProgress(100, true);
+    }
+    else if (download_item->IsCanceled() || download_item->IsInterrupted())
+    {
+        mParent->getCallbackManager()->onFileDownloadProgress(-1, true);
     }
 }
 
