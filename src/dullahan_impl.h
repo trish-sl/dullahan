@@ -141,6 +141,7 @@ class dullahan_impl :
         dullahan_callback_manager* getCallbackManager();
 
         bool getFlipPixelsY();
+        bool getReportDirtyRects();
         bool getFlipMouseY();
 
         void requestPageZoom();
@@ -192,6 +193,7 @@ class dullahan_impl :
         bool mAutoPlayWithoutGesture;
         bool mFakeUIForMediaStream;
         bool mFlipPixelsY;
+        bool mReportDirtyRects;
         bool mFlipMouseY;
         double mRequestedPageZoom;
         const int mViewDepth = 4;

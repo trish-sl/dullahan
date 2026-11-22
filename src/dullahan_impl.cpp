@@ -78,6 +78,7 @@ dullahan_impl::dullahan_impl() :
     mAutoPlayWithoutGesture(false),
     mFakeUIForMediaStream(false),
     mFlipPixelsY(false),
+    mReportDirtyRects(false),
     mFlipMouseY(false),
     mRequestContext(nullptr),
     mRequestedPageZoom(1.0)
@@ -405,6 +406,9 @@ bool dullahan_impl::initCEF(dullahan::dullahan_settings& user_settings)
     // coords are upside down compared to default for Dullahan
     mFlipPixelsY = user_settings.flip_pixels_y;
 
+    // if true, onPageChanged reports only the changed part of the page
+    mReportDirtyRects = user_settings.report_dirty_rects;
+
     // if true, this setting inverts the injected mouse coordinates in Y direction
     // useful for matching the setting for flipPixelsY
     mFlipMouseY = user_settings.flip_mouse_y;
@@ -534,6 +538,11 @@ int dullahan_impl::getDepth()
 bool dullahan_impl::getFlipPixelsY()
 {
     return mFlipPixelsY;
+}
+
+bool dullahan_impl::getReportDirtyRects()
+{
+    return mReportDirtyRects;
 }
 
 bool dullahan_impl::getFlipMouseY()

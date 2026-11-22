@@ -26,6 +26,8 @@
 
 #define NOMINMAX
 
+#include <algorithm>
+
 #include "wrapper/cef_helpers.h"
 
 #include "dullahan_render_handler.h"
@@ -39,16 +41,17 @@ dullahan_render_handler::dullahan_render_handler(dullahan_impl* parent) :
     // inidcates if we should flip the pixel buffer in Y direction
     mFlipYPixels = parent->getFlipPixelsY();
 
+    // indicates if onPageChanged reports only the changed part of the page
+    mReportDirtyRects = parent->getReportDirtyRects();
+
     // the pixel buffer
     mPixelBuffer = nullptr;
     mPixelBufferWidth = 0;
     mPixelBufferHeight = 0;
+    mPixelBufferNew = false;
 
     // the popup buffer
     mPopupBuffer = nullptr;
-
-    // a row in the pixel buffer - used as temp buffer when flipping
-    mPixelBufferRow = nullptr;
 
     // depth is same for all buffer
     mBufferDepth = parent->getDepth();
@@ -59,8 +62,6 @@ dullahan_render_handler::~dullahan_render_handler()
     delete[] mPixelBuffer;
 
     delete[] mPopupBuffer;
-
-    delete[] mPixelBufferRow;
 }
 
 void dullahan_render_handler::resizePixelBuffer(int width, int height)
@@ -73,8 +74,8 @@ void dullahan_render_handler::resizePixelBuffer(int width, int height)
         mPixelBuffer = new unsigned char[mPixelBufferWidth * mPixelBufferHeight * mBufferDepth];
         memset(mPixelBuffer, 0xff, mPixelBufferWidth * mPixelBufferHeight * mBufferDepth);
 
-        delete[] mPixelBufferRow;
-        mPixelBufferRow = new unsigned char[mPixelBufferWidth * mBufferDepth];
+        // the next paint fills the whole buffer, whatever its dirty rectangles say
+        mPixelBufferNew = true;
     }
 }
 
@@ -114,29 +115,34 @@ void dullahan_render_handler::OnPaint(CefRefPtr<CefBrowser> browser,
 
     CEF_REQUIRE_UI_THREAD();
 
+    // the part of the page the consumer is told changed, in view coordinates
+    CefRect changed(0, 0, mPixelBufferWidth, mPixelBufferHeight);
+
     // whole page was updated
     if (type == PET_VIEW)
     {
-        // create (firs time) or resize (browser size changed) a buffer for pixels
-        // and copy them in
+        // create (first time) or resize (browser size changed) a buffer for pixels
         resizePixelBuffer(width, height);
-        memcpy(mPixelBuffer, buffer, width * height * mBufferDepth);
+        const bool resized = mPixelBufferNew;
+        mPixelBufferNew = false;
 
-        // we need to flip pixel buffer in Y direction as per settings
-        if (mFlipYPixels)
+        // copy in the union of the dirty rectangles (the whole view after a resize or when
+        // dirty rectangles aren't reported), flipped in Y direction as per settings
+        CefRect area(0, 0, width, height);
+        if (mReportDirtyRects && !resized && !dirtyRects.empty())
         {
-            const size_t stride = mPixelBufferWidth * mBufferDepth;
-            unsigned char* lower = mPixelBuffer;
-            unsigned char* upper = mPixelBuffer + (mPixelBufferHeight - 1) * stride;
-            while (lower < upper)
+            int left = width, top = height, right = 0, bottom = 0;
+            for (const CefRect& rect : dirtyRects)
             {
-                memcpy(mPixelBufferRow, lower, stride);
-                memcpy(lower, upper, stride);
-                memcpy(upper, mPixelBufferRow, stride);
-                lower += stride;
-                upper -= stride;
+                left = std::min(left, std::max(rect.x, 0));
+                top = std::min(top, std::max(rect.y, 0));
+                right = std::max(right, std::min(rect.x + rect.width, width));
+                bottom = std::max(bottom, std::min(rect.y + rect.height, height));
             }
+            area = (right > left && bottom > top) ? CefRect(left, top, right - left, bottom - top) : CefRect(0, 0, 0, 0);
         }
+        copyViewRect((const unsigned char*)buffer, area);
+        changed = area;
 
         // if there is still a popup open, write it into the page too (it's pixels will have been
         // copied into it's buffer by a call to OnPaint with type of PET_POPUP earlier)
@@ -155,13 +161,57 @@ void dullahan_render_handler::OnPaint(CefRefPtr<CefBrowser> browser,
         // copy over popup pixels into page pixels. We need this for when popup is changing (e.g. highlighting or scrolling)
         // when the containing page is not changing and therefore doesn't get an OnPaint update
         copyPopupIntoView();
+
+        const int left = std::max(mPopupBufferRect.x, 0);
+        const int top = std::max(mPopupBufferRect.y, 0);
+        const int right = std::min(mPopupBufferRect.x + mPopupBufferRect.width, mPixelBufferWidth);
+        const int bottom = std::min(mPopupBufferRect.y + mPopupBufferRect.height, mPixelBufferHeight);
+        changed = (right > left && bottom > top) ? CefRect(left, top, right - left, bottom - top) : CefRect(0, 0, 0, 0);
     }
 
     // if we have a buffer, indicate to consuming app that the page changed.
     if (mPixelBufferWidth > 0 && mPixelBufferHeight > 0)
     {
-        mParent->getCallbackManager()->onPageChanged(mPixelBuffer, 0, 0, mPixelBufferWidth, mPixelBufferHeight);
+        if (!mReportDirtyRects)
+        {
+            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, 0, 0, mPixelBufferWidth, mPixelBufferHeight);
+        }
+        else if (changed.width > 0 && changed.height > 0)
+        {
+            const CefRect rect = toBufferRect(changed);
+            mParent->getCallbackManager()->onPageChanged(mPixelBuffer, rect.x, rect.y, rect.width, rect.height);
+        }
     }
+}
+
+// Copy a rectangle of the view (CEF's tightly packed buffer, the same size as the pixel
+// buffer) into the pixel buffer, flipping it in Y direction as per settings. Each row goes
+// straight to its final place, so a flip costs no extra pass over the buffer.
+void dullahan_render_handler::copyViewRect(const unsigned char* src, const CefRect& rect)
+{
+    if (rect.width <= 0 || rect.height <= 0)
+    {
+        return;
+    }
+
+    const size_t stride = (size_t)mPixelBufferWidth * mBufferDepth;
+    const size_t offset = (size_t)rect.x * mBufferDepth;
+    const size_t span = (size_t)rect.width * mBufferDepth;
+    for (int y = rect.y; y < rect.y + rect.height; ++y)
+    {
+        const int dst_y = mFlipYPixels ? (mPixelBufferHeight - 1 - y) : y;
+        memcpy(mPixelBuffer + dst_y * stride + offset, src + y * stride + offset, span);
+    }
+}
+
+// A rectangle of the view in pixel buffer coordinates (after any Y flip)
+CefRect dullahan_render_handler::toBufferRect(const CefRect& rect) const
+{
+    if (!mFlipYPixels)
+    {
+        return rect;
+    }
+    return CefRect(rect.x, mPixelBufferHeight - (rect.y + rect.height), rect.width, rect.height);
 }
 
 // CefRenderHandler override

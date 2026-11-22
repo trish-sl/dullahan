@@ -190,6 +190,12 @@ class dullahan
             // flip pixel buffer in Y direction
             bool flip_pixels_y = false;
 
+            // report only the part of the page that changed to onPageChanged: x, y, width
+            // and height then describe the changed rectangle in pixel buffer coordinates
+            // (after any Y flip) and only that part of the buffer was updated. When false,
+            // every call reports the whole page as before.
+            bool report_dirty_rects = false;
+
             // flip mouse input in Y direction
             bool flip_mouse_y = false;
 
